@@ -2,6 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>支出憑證黏存單 產生工具</title>
     <script src="docxtemplater.js"></script>
     <script src="pizzip.js"></script>
@@ -29,6 +30,13 @@
         .btn-clear-all { background-color: #e74c3c; } /* 紅色 */
         .btn-clear-all:hover { background-color: #c0392b; }
         .instructions { background: #e9f5f9; padding: 15px; border-left: 4px solid #3498db; margin-bottom: 20px; font-size: 14px; color: #333; line-height: 1.6; }
+        /* 新增：手機版自適應專用樣式 */
+        @media (max-width: 480px) {
+            .container { padding: 15px; }
+            .input-wrapper { flex-direction: column; align-items: stretch; }
+            .btn-clear { width: 100%; margin-top: 5px; }
+            .action-group { flex-direction: column; }
+        }
     </style>
 </head>
 <body>
