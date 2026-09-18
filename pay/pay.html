@@ -128,7 +128,7 @@
 
             const amountStr = amount.toString();
             // 補足 8 位數 (千萬、百萬、十萬、萬、千、百、十、元)
-            const paddedAmount = amountStr.padStart(8, '―');
+            const paddedAmount = amountStr.padStart(8, '0');
             
             const data = {
                 project_name: projectName,
