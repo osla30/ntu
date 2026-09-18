@@ -143,30 +143,162 @@ document.addEventListener("DOMContentLoaded", () => {
             { type: 'text', title: 'Primer名稱 (6字元內)', width: 250, align: 'center' },
             { type: 'text', title: '片段長度(bp)', width: 150, align: 'center' }
         ],
-        allowInsertRow: false, // 鎖定行數，配合 Word 模板固定 30 格
+        allowInsertRow: false, 
         allowInsertColumn: false,
         allowDeleteRow: false,
         allowDeleteColumn: false,
-        onchange: calcTotal, // 綁定資料變更事件
-        onselection: function() { /* 可選：處理選取邏輯 */ }
+        onchange: calcTotal, 
+        onbeforechange: autoIncrementDrag // 綁定攔截器
     });
 });
 
-// 即時計算總樣本數
+// ==========================================
+// 1. 全域滑鼠拖曳狀態追蹤器
+// ==========================================
+let isFillDragging = false;
+let dragOrigin = null; 
+
+document.addEventListener('mousedown', function(e) {
+    if (e.target && e.target.classList && 
+       (e.target.classList.contains('jexcel_corner') || e.target.classList.contains('jspreadsheet_corner'))) {
+        isFillDragging = true;
+        let sel = mySpreadsheet.selectedCell; 
+        if (sel && sel.length >= 4) {
+            dragOrigin = {
+                c1: Math.min(sel[0], sel[2]),
+                r1: Math.min(sel[1], sel[3]),
+                c2: Math.max(sel[0], sel[2]),
+                r2: Math.max(sel[1], sel[3])
+            };
+        }
+    }
+});
+
+document.addEventListener('mouseup', function() {
+    if (isFillDragging) {
+        setTimeout(() => { 
+            isFillDragging = false; 
+            dragOrigin = null;
+        }, 100);
+    }
+});
+
+// ==========================================
+// 2. 終極版自動遞增與循環貼上邏輯 (支援上下雙向)
+// ==========================================
+function autoIncrementDrag(instance, cell, x, y, value) {
+    // 防線：非拖曳狀態一律放行 (保護手動輸入與複製貼上)
+    if (!isFillDragging || !dragOrigin) return value;
+
+    x = parseInt(x, 10);
+    y = parseInt(y, 10);
+
+    // 落在原始框選範圍內，直接放行
+    if (y >= dragOrigin.r1 && y <= dragOrigin.r2) return value;
+
+    let dragHeight = dragOrigin.r2 - dragOrigin.r1 + 1;
+
+    // 檢查「當前欄」的框選範圍是否內容完全相同
+    let isColIdentical = true;
+    let firstVal = mySpreadsheet.getValueFromCoords(x, dragOrigin.r1);
+    
+    if (dragHeight > 1) {
+        for (let r = dragOrigin.r1 + 1; r <= dragOrigin.r2; r++) {
+            if (mySpreadsheet.getValueFromCoords(x, r) !== firstVal) {
+                isColIdentical = false;
+                break;
+            }
+        }
+    }
+
+    // 判斷拖曳方向
+    let isDraggingDown = y > dragOrigin.r2;
+
+    // 情境 A：單格拖曳 或 內容完全相同 => 強制純複製
+    if (dragHeight === 1 || isColIdentical) {
+        return firstVal !== null ? firstVal : value;
+    } 
+    else {
+        // 情境 B：多格且內容不同 => 啟動數學遞增 或 陣列循環
+        // 算出現在這格距離框選邊界差了「幾步 (diff)」
+        let diff = isDraggingDown ? (y - dragOrigin.r2) : (dragOrigin.r1 - y);
+        let baseR = isDraggingDown ? dragOrigin.r2 : dragOrigin.r1;
+        let baseValue = mySpreadsheet.getValueFromCoords(x, baseR);
+
+        if (baseValue != null && baseValue !== "") {
+            let baseStr = baseValue.toString();
+            let match = baseStr.match(/^(.*?)(\d+)$/);
+            
+            let isNumericSeries = false;
+            let step = 1;
+            let prefix = "";
+            let baseNum = 0;
+            let paddingLength = 0;
+
+            if (match) {
+                isNumericSeries = true;
+                prefix = match[1];
+                baseNum = parseInt(match[2], 10);
+                paddingLength = match[2].length;
+
+                if (dragHeight > 1) {
+                    // 嚴謹檢查：確保框選範圍內的所有儲存格都具備相同的 prefix，才視為等差數列
+                    for (let r = dragOrigin.r1; r <= dragOrigin.r2; r++) {
+                        let val = mySpreadsheet.getValueFromCoords(x, r);
+                        if (val == null) { isNumericSeries = false; break; }
+                        let m = val.toString().match(/^(.*?)(\d+)$/);
+                        if (!m || m[1] !== prefix) {
+                            isNumericSeries = false;
+                            break;
+                        }
+                    }
+                    
+                    // 若確認為同系列數列，才計算等差 step
+                    if (isNumericSeries) {
+                        let topVal = mySpreadsheet.getValueFromCoords(x, dragOrigin.r1);
+                        let secVal = mySpreadsheet.getValueFromCoords(x, dragOrigin.r1 + 1);
+                        let m1 = topVal.toString().match(/^(.*?)(\d+)$/);
+                        let m2 = secVal.toString().match(/^(.*?)(\d+)$/);
+                        step = parseInt(m2[2], 10) - parseInt(m1[2], 10);
+                        if (!isDraggingDown) step = -step;
+                    }
+                }
+            }
+
+            // 處理邏輯 1：確認為等差數列 => 執行數學運算
+            if (isNumericSeries) {
+                let nextNum = baseNum + (diff * step);
+                if (nextNum < 0) nextNum = 0; 
+                return prefix + nextNum.toString().padStart(paddingLength, '0');
+            } 
+            // 處理邏輯 2：非等差數列 (包含不同 Primer 混搭) => 循環貼上
+            else {
+                let offset = diff - 1;
+                let sourceRow = isDraggingDown
+                    ? dragOrigin.r1 + (offset % dragHeight)
+                    : dragOrigin.r2 - (offset % dragHeight);
+                
+                let loopValue = mySpreadsheet.getValueFromCoords(x, sourceRow);
+                return loopValue !== null ? loopValue : value;
+            }
+        }
+    }
+    return value;
+}
+
+// ==========================================
+// 3. 表單 UI 操作與匯出邏輯
+// ==========================================
 function calcTotal() {
     let count = 0;
     const data = mySpreadsheet.getData();
     for(let i=0; i<30; i++) {
-        // 若 Template 欄位（第0索引）有值，即算為一個檢體
-        if(data[i][0] && data[i][0].toString().trim() !== '') {
-            count++;
-        }
+        if(data[i] && data[i][0] != null && data[i][0].toString().trim() !== '') count++;
     }
     document.getElementById('ui-total-count').innerText = count;
     return count;
 }
 
-// 清除所有資料
 function clearAll() {
     if (confirm('確定要清除所有填寫的資料嗎？')) {
         document.getElementById('in-name').value = '';
@@ -180,14 +312,12 @@ function clearAll() {
         const radios = document.getElementsByName('dna-type');
         radios[1].checked = true;
         
-        // 重設為 30 行空白陣列
         let emptyData = Array.from({length: 30}, () => ['', '', '']);
         mySpreadsheet.setData(emptyData);
         calcTotal();
     }
 }
 
-// 載入範例
 function loadExample() {
     document.getElementById('in-name').value = '野比大雄';
     document.getElementById('in-pi').value = '哆啦A夢';
@@ -198,9 +328,8 @@ function loadExample() {
     document.getElementById('in-email').value = 'doraemon9487@gmail.com';
     
     const radios = document.getElementsByName('dna-type');
-    radios[1].checked = true; // PCR product
+    radios[1].checked = true;
 
-    // 建立包含範例的 30 行陣列
     let exampleData = Array.from({length: 30}, () => ['', '', '']);
     exampleData[0] = ['Con_01', 'ABC7_F', '878'];
     exampleData[1] = ['Con_01', 'ABC7_R', '878'];
@@ -220,7 +349,6 @@ function generateWord() {
     const phoneExt = document.getElementById('in-phone-ext').value;
     const email = document.getElementById('in-email').value;
 
-    // 決定勾選哪個框框
     const types = document.getElementsByName('dna-type');
     let type1 = "□", type2 = "□", type3 = "□", type4 = "□";
     if (types[0].checked) type1 = "■";
@@ -243,18 +371,16 @@ function generateWord() {
         totalCount: calcTotal() || "0"
     };
 
-    // 填入 1~30 格變數
     const sheetData = mySpreadsheet.getData();
     for (let i = 0; i < 30; i++) {
         let rowNum = i + 1;
-        // Jspreadsheet 資料結構為 [行][列]
-        data[`temp${rowNum}`] = sheetData[i][0] || " ";
-        data[`prim${rowNum}`] = sheetData[i][1] || " ";
-        data[`len${rowNum}`] = sheetData[i][2] || " ";
+        let row = sheetData[i] || []; // 防呆：避免資料陣列遭異常縮減
+        data[`temp${rowNum}`] = row[0] || " ";
+        data[`prim${rowNum}`] = row[1] || " ";
+        data[`len${rowNum}`] = row[2] || " ";
     }
 
     try {
-        // 直接從 Base64 解析檔案
         const templateBytes = base64ToUint8Array(base64Template);
         const zip = new PizZip(templateBytes);
         
@@ -264,15 +390,14 @@ function generateWord() {
             delimiters: { start: '{{', end: '}}' }
         });
 
-        doc.setData(data);
-        doc.render();
+        // 採用 docxtemplater 最新官方寫法，避免 console 產生棄用警告
+        doc.render(data);
 
         const out = doc.getZip().generate({
             type: "blob",
             mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         });
         
-        // 下載檔名時間戳記處理
         const now = new Date();
         const yyyy = now.getFullYear();
         const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -286,10 +411,7 @@ function generateWord() {
     } catch (e) {
         console.error(e);
         if (e.properties && e.properties.errors) {
-            const errorMessages = e.properties.errors.map(function (err) {
-                return err.properties.explanation;
-            }).join("\n");
-            alert("產生 Word 文件時發生錯誤：\n" + errorMessages);
+            alert("產生 Word 文件時發生錯誤：\n" + e.properties.errors.map(err => err.properties.explanation).join("\n"));
         } else {
             alert("產生 Word 文件時發生錯誤：" + e.message);
         }
