@@ -7,6 +7,11 @@
     <script src="docxtemplater.js"></script>
     <script src="pizzip.js"></script>
     <script src="FileSaver.min.js"></script>
+    <!-- 引入 Jspreadsheet 與 jSuites -->
+    <script src="https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4/dist/index.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspreadsheet-ce@4/dist/jspreadsheet.min.css" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/jsuites/dist/jsuites.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsuites/dist/jsuites.min.css" type="text/css" />
     <style>
         :root { --primary: #1B5EBE; --bg: #f4f6f8; --border: #dcdcdc; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; line-height: 1.5; }
@@ -27,12 +32,6 @@
         .radio-group label { display: flex; align-items: center; font-weight: normal; cursor: pointer; padding: 8px; border: 1px solid #eee; border-radius: 4px; }
         .radio-group label:hover { background: #f9f9f9; }
         .radio-group input { margin-right: 10px; }
-        .sample-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 5px; }
-        th, td { padding: 8px 5px; text-align: center; border: 1px solid var(--border); }
-        th { background: #f0f4f8; font-weight: bold; font-size: 0.9em; color: var(--primary); }
-        td input { width: 90%; padding: 5px; border: 1px solid #eee; border-radius: 3px; text-align: center; font-family: monospace; font-size: 14px; }
-        td input:focus { border-color: var(--primary); background: #fefefe; }
         .btn-group { display: flex; gap: 15px; margin-top: 30px; }
         button { flex: 1; padding: 14px; font-size: 16px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
         .btn-primary { background: var(--primary); color: white; }
@@ -103,33 +102,8 @@
 
     <div class="section">
         <div class="section-title">檢體清單 (1~30)</div>
-        <div class="sample-grid">
-            <div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th style="width: 10%;">＃</th>
-                            <th style="width: 35%;">Template名稱 (6字元內)</th>
-                            <th style="width: 35%;">Primer名稱 (6字元內)</th>
-                            <th style="width: 20%;">片段長度(bp)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="ui-sample-left"></tbody>
-                </table>
-            </div>
-            <div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th style="width: 10%;">＃</th>
-                            <th style="width: 35%;">Template名稱 (6字元內)</th>
-                            <th style="width: 35%;">Primer名稱 (6字元內)</th>
-                            <th style="width: 20%;">片段長度(bp)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="ui-sample-right"></tbody>
-                </table>
-            </div>
+        <div style="display: flex; justify-content: center; width: 100%;">
+            <div id="spreadsheet-container" style="overflow-x: auto; max-width: 100%;"></div>
         </div>
         <div class="total-indicator">當前總樣本數：<span id="ui-total-count">0</span></div>
     </div>
@@ -155,38 +129,36 @@ function base64ToUint8Array(base64) {
     return bytes;
 }
 
-// 初始化 30 個檢體輸入框
+// 宣告全域變數以供其他函數存取
+let mySpreadsheet;
+
 document.addEventListener("DOMContentLoaded", () => {
-    const leftTbody = document.getElementById('ui-sample-left');
-    const rightTbody = document.getElementById('ui-sample-right');
-    
-    for(let i=1; i<=15; i++) {
-        // 左側 (1~15)
-        leftTbody.innerHTML += `
-        <tr>
-            <td>${i}</td>
-            <td><input type="text" id="temp-${i}" oninput="calcTotal()"></td>
-            <td><input type="text" id="prim-${i}"></td>
-            <td><input type="text" id="len-${i}"></td>
-        </tr>`;
-        
-        // 右側 (16~30)
-        let i2 = i + 15;
-        rightTbody.innerHTML += `
-        <tr>
-            <td>${i2}</td>
-            <td><input type="text" id="temp-${i2}" oninput="calcTotal()"></td>
-            <td><input type="text" id="prim-${i2}"></td>
-            <td><input type="text" id="len-${i2}"></td>
-        </tr>`;
-    }
+    // 建立 30 行空白初始資料
+    let initialData = Array.from({length: 30}, () => ['', '', '']);
+
+    mySpreadsheet = jspreadsheet(document.getElementById('spreadsheet-container'), {
+        data: initialData,
+        columns: [
+            { type: 'text', title: 'Template名稱 (6字元內)', width: 250, align: 'center' },
+            { type: 'text', title: 'Primer名稱 (6字元內)', width: 250, align: 'center' },
+            { type: 'text', title: '片段長度(bp)', width: 150, align: 'center' }
+        ],
+        allowInsertRow: false, // 鎖定行數，配合 Word 模板固定 30 格
+        allowInsertColumn: false,
+        allowDeleteRow: false,
+        allowDeleteColumn: false,
+        onchange: calcTotal, // 綁定資料變更事件
+        onselection: function() { /* 可選：處理選取邏輯 */ }
+    });
 });
 
 // 即時計算總樣本數
 function calcTotal() {
     let count = 0;
-    for(let i=1; i<=30; i++) {
-        if(document.getElementById(`temp-${i}`).value.trim() !== '') {
+    const data = mySpreadsheet.getData();
+    for(let i=0; i<30; i++) {
+        // 若 Template 欄位（第0索引）有值，即算為一個檢體
+        if(data[i][0] && data[i][0].toString().trim() !== '') {
             count++;
         }
     }
@@ -208,11 +180,9 @@ function clearAll() {
         const radios = document.getElementsByName('dna-type');
         radios[1].checked = true;
         
-        for(let i=1; i<=30; i++) {
-            document.getElementById(`temp-${i}`).value = '';
-            document.getElementById(`prim-${i}`).value = '';
-            document.getElementById(`len-${i}`).value = '';
-        }
+        // 重設為 30 行空白陣列
+        let emptyData = Array.from({length: 30}, () => ['', '', '']);
+        mySpreadsheet.setData(emptyData);
         calcTotal();
     }
 }
@@ -229,27 +199,15 @@ function loadExample() {
     
     const radios = document.getElementsByName('dna-type');
     radios[1].checked = true; // PCR product
-    
-    for(let i=1; i<=30; i++) {
-        document.getElementById(`temp-${i}`).value = '';
-        document.getElementById(`prim-${i}`).value = '';
-        document.getElementById(`len-${i}`).value = '';
-    }
 
-    const exampleData = [
-        { t: 'Con_01', p: 'ABC7_F', l: '878' },
-        { t: 'Con_01', p: 'ABC7_R', l: '878' },
-        { t: 'Exp_02', p: 'XYZ9_F', l: '566' },
-        { t: 'Exp_02', p: 'XYZ9_R', l: '566' }
-    ];
+    // 建立包含範例的 30 行陣列
+    let exampleData = Array.from({length: 30}, () => ['', '', '']);
+    exampleData[0] = ['Con_01', 'ABC7_F', '878'];
+    exampleData[1] = ['Con_01', 'ABC7_R', '878'];
+    exampleData[2] = ['Exp_02', 'XYZ9_F', '566'];
+    exampleData[3] = ['Exp_02', 'XYZ9_R', '566'];
     
-    exampleData.forEach((data, index) => {
-        let i = index + 1;
-        document.getElementById(`temp-${i}`).value = data.t;
-        document.getElementById(`prim-${i}`).value = data.p;
-        document.getElementById(`len-${i}`).value = data.l;
-    });
-    
+    mySpreadsheet.setData(exampleData);
     calcTotal();
 }
 
@@ -285,11 +243,14 @@ function generateWord() {
         totalCount: calcTotal() || "0"
     };
 
-    // 填入 1~30 格變數 (若未填寫則以空格代替，避免 docxtemplater 輸出 'undefined')
-    for (let i = 1; i <= 30; i++) {
-        data[`temp${i}`] = document.getElementById(`temp-${i}`).value || " ";
-        data[`prim${i}`] = document.getElementById(`prim-${i}`).value || " ";
-        data[`len${i}`] = document.getElementById(`len-${i}`).value || " ";
+    // 填入 1~30 格變數
+    const sheetData = mySpreadsheet.getData();
+    for (let i = 0; i < 30; i++) {
+        let rowNum = i + 1;
+        // Jspreadsheet 資料結構為 [行][列]
+        data[`temp${rowNum}`] = sheetData[i][0] || " ";
+        data[`prim${rowNum}`] = sheetData[i][1] || " ";
+        data[`len${rowNum}`] = sheetData[i][2] || " ";
     }
 
     try {
