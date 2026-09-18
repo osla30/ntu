@@ -115,34 +115,44 @@
             const purpose = document.getElementById("purpose").value;
             const payee = document.getElementById("payee").value;
 
-            if (!projectName || !amountInput || !purpose || !payee) {
-                alert("請填寫所有欄位資料！");
+            // 1. 判斷是否「完全沒有填寫資訊」
+            const isAllEmpty = !projectName && !amountInput && !purpose && !payee;
+
+            // 2. 如果不是全空，但有部分未填，則中斷並提醒
+            if (!isAllEmpty && (!projectName || !amountInput || !purpose || !payee)) {
+                alert("請填寫所有欄位資料！（若要產生空白表單，請清除所有欄位）");
                 return;
             }
 
-            const amount = parseInt(amountInput, 10);
-            if (amount < 0 || amount > 99999999) {
-                alert("金額必須在 0 到 99,999,999 之間！");
-                return;
+            let amountStr = "";
+            let paddedAmount = "        "; // 8個空格，用於空白表單分割
+
+            // 3. 若有填寫資料，則處理金額格式
+            if (!isAllEmpty) {
+                const amount = parseInt(amountInput, 10);
+                if (amount < 0 || amount > 99999999) {
+                    alert("金額必須在 0 到 99,999,999 之間！");
+                    return;
+                }
+                amountStr = amount.toString();
+                // 補足 8 位數 (千萬、百萬、十萬、萬、千、百、十、元)
+                paddedAmount = amountStr.padStart(8, '0');
             }
 
-            const amountStr = amount.toString();
-            // 補足 8 位數 (千萬、百萬、十萬、萬、千、百、十、元)
-            const paddedAmount = amountStr.padStart(8, '0');
-            
+            // 4. 準備寫入 Word 的資料 (使用 trim() 去除空白表單的空格)
             const data = {
-                project_name: projectName,
-                m_10m: paddedAmount[0],
-                m_1m: paddedAmount[1],
-                m_100k: paddedAmount[2],
-                m_10k: paddedAmount[3],
-                m_1k: paddedAmount[4],
-                m_100: paddedAmount[5],
-                m_10: paddedAmount[6],
-                m_1: paddedAmount[7],
+                project_name: projectName || "",
+                m_10m: paddedAmount[0].trim(),
+                m_1m: paddedAmount[1].trim(),
+                m_100k: paddedAmount[2].trim(),
+                m_10k: paddedAmount[3].trim(),
+                m_1k: paddedAmount[4].trim(),
+                m_100: paddedAmount[5].trim(),
+                m_10: paddedAmount[6].trim(),
+                m_1: paddedAmount[7].trim(),
                 total_amount: amountStr,
-                purpose: purpose,
-                payee: payee
+                purpose: purpose || "",
+                payee: payee || ""
             };
 
             try {
@@ -162,7 +172,24 @@
                     type: "blob",
                     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 });
-                saveAs(out, "支出憑證黏存單_已填寫.docx");
+                // 決定輸出的檔名
+                let fileName = "支出憑證黏存單_空白.docx";
+
+                if (!isAllEmpty) {
+                    // 取得本機時間
+                    const now = new Date();
+                    const yyyy = now.getFullYear();
+                    // 月份從 0 開始，所以要 +1，並用 padStart 補零至兩位數
+                    const mm = String(now.getMonth() + 1).padStart(2, '0');
+                    const dd = String(now.getDate()).padStart(2, '0');
+                    const hh = String(now.getHours()).padStart(2, '0');
+                    const min = String(now.getMinutes()).padStart(2, '0');
+
+                    // 組合檔名 例如：支出憑證黏存單_20260918_1020.docx
+                    fileName = `支出憑證黏存單_${yyyy}${mm}${dd}_${hh}${min}.docx`;
+                }
+
+                saveAs(out, fileName);
             } catch (error) {
                 console.error("Docxtemplater Error:", error);
                 if (error.properties && error.properties.errors) {
