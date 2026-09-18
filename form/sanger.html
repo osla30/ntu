@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sanger 定序檢體單 填表工具</title>
-    <!-- 引用核心函式庫 (若要完全離線，請將這些 js 檔下載並與 html 放同一個資料夾，然後將 src 改為 "docxtemplater.js" 等) -->
     <script src="docxtemplater.js"></script>
     <script src="pizzip.js"></script>
     <script src="FileSaver.min.js"></script>
@@ -52,7 +51,8 @@
     <div class="instructions">
         <strong>【台大醫院版本】</strong><br>
         只要在下方填寫資料，系統會自動套入標準格式，並匯出填妥的 Word 檔案。<br>
-        所有資料均在您的瀏覽器端處理完成，不會上傳任何資訊至雲端，請安心使用。
+        所有資料均在您的瀏覽器端處理完成，不會上傳任何資訊至雲端，請安心使用。<br>
+        <a href="https://www.ntuh.gov.tw/LARD/Download!download.action?id=2c9ee69a91e8eff7019222ffaa1300af" target="_blank" rel="noopener noreferrer" style="color: #ff331d; font-weight: bold;">Sanger定序須知</a>
     </div>
     
     <div class="section">
@@ -64,11 +64,11 @@
             </div>
             <div class="form-group">
                 <label>實驗室主持人</label>
-                <input type="text" id="in-pi" placeholder="例：大雄的老師">
+                <input type="text" id="in-pi" placeholder="例：哆啦A夢">
             </div>
             <div class="form-group">
                 <label>單位</label>
-                <input type="text" id="in-dept" placeholder="例：小學校">
+                <input type="text" id="in-dept" placeholder="例：野比的家">
             </div>
         </div>
         <div class="form-row">
@@ -108,7 +108,7 @@
                     <thead>
                         <tr>
                             <th style="width: 10%;">＃</th>
-                            <th style="width: 35%;">檢體名稱(15字元內)</th>
+                            <th style="width: 35%;">Template名稱(15字元內)</th>
                             <th style="width: 35%;">Primer名稱(12字元內)</th>
                             <th style="width: 20%;">片段長度(bp)(7字元內)</th>
                         </tr>
@@ -121,7 +121,7 @@
                     <thead>
                         <tr>
                             <th style="width: 10%;">＃</th>
-                            <th style="width: 35%;">檢體名稱(15字元內)</th>
+                            <th style="width: 35%;">Template名稱(15字元內)</th>
                             <th style="width: 35%;">Primer名稱(12字元內)</th>
                             <th style="width: 20%;">片段長度(bp)(7字元內)</th>
                         </tr>
@@ -219,8 +219,8 @@ function clearAll() {
 // 載入範例
 function loadExample() {
     document.getElementById('in-name').value = '野比大雄';
-    document.getElementById('in-pi').value = '大雄的老師';
-    document.getElementById('in-dept').value = '小學校';
+    document.getElementById('in-pi').value = '哆啦A夢';
+    document.getElementById('in-dept').value = '野比的家';
     document.getElementById('in-phone-area').value = '02';
     document.getElementById('in-phone-num').value = '1234-5678';
     document.getElementById('in-phone-ext').value = '9487';
