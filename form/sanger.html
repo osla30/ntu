@@ -433,8 +433,9 @@ function generateWord() {
         doc.render(data);
 
         const out = doc.getZip().generate({
-            type: "blob",
-            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          type: "blob",
+          mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          compression: "DEFLATE" // 加入此行，明確啟用標準 ZIP 壓縮
         });
         
         const now = new Date();

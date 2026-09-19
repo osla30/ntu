@@ -177,8 +177,9 @@
                 doc.render();
 
                 const out = doc.getZip().generate({
-                    type: "blob",
-                    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                 type: "blob",
+                 mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                 compression: "DEFLATE" // 加入此行，明確啟用標準 ZIP 壓縮
                 });
                 // 決定輸出的檔名
                 let fileName = "支出憑證黏存單_空白.docx";
