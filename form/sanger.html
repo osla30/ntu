@@ -154,10 +154,14 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ==========================================
-// 1. 全域滑鼠拖曳狀態追蹤器
+// 1. 全域滑鼠拖曳狀態追蹤器 (含邊緣自動捲動)
 // ==========================================
 let isFillDragging = false;
 let dragOrigin = null; 
+
+// 控制自動捲動的計時器與速度變數
+let scrollInterval = null;
+let scrollSpeed = 0;
 
 document.addEventListener('mousedown', function(e) {
     if (e.target && e.target.classList && 
@@ -175,8 +179,42 @@ document.addEventListener('mousedown', function(e) {
     }
 });
 
+// 監聽滑鼠移動，判斷是否靠近螢幕邊緣並啟動捲動
+document.addEventListener('mousemove', function(e) {
+    if (!isFillDragging) return;
+
+    const edgeThreshold = 60; // 距離螢幕上下邊緣 60px 內觸發捲動
+    const viewportHeight = window.innerHeight;
+    const mouseY = e.clientY;
+
+    if (mouseY < edgeThreshold) {
+        scrollSpeed = -15; // 靠近頂部，向上捲動
+    } else if (mouseY > viewportHeight - edgeThreshold) {
+        scrollSpeed = 15; // 靠近底部，向下捲動
+    } else {
+        scrollSpeed = 0; // 不在邊緣，停止捲動
+        if (scrollInterval) {
+            clearInterval(scrollInterval);
+            scrollInterval = null;
+        }
+        return;
+    }
+
+    // 若尚未啟動計時器則啟動
+    if (!scrollInterval && scrollSpeed !== 0) {
+        scrollInterval = setInterval(() => {
+            window.scrollBy(0, scrollSpeed);
+        }, 20); // 每 20 毫秒平滑捲動一次
+    }
+});
+
+// 在放開滑鼠時清除捲動計時器
 document.addEventListener('mouseup', function() {
     if (isFillDragging) {
+        if (scrollInterval) {
+            clearInterval(scrollInterval);
+            scrollInterval = null;
+        }
         setTimeout(() => { 
             isFillDragging = false; 
             dragOrigin = null;
