@@ -140,16 +140,33 @@ document.addEventListener("DOMContentLoaded", () => {
     mySpreadsheet = jspreadsheet(document.getElementById('spreadsheet-container'), {
         data: initialData,
         columns: [
-            { type: 'text', title: 'Template名稱 (6字元內)', width: 250, align: 'center' },
-            { type: 'text', title: 'Primer名稱 (6字元內)', width: 250, align: 'center' },
-            { type: 'text', title: '片段長度(bp)', width: 150, align: 'center' }
+            { type: 'text', title: 'Template (6字元內，超出將截斷)', width: 250, align: 'center', maxlength: 6 },
+            { type: 'text', title: 'Primer (6字元內，超出將截斷)', width: 250, align: 'center', maxlength: 6 },
+            { type: 'text', title: '片段長度 (bp)', width: 150, align: 'center', maxlength: 5 }
         ],
         allowInsertRow: false, 
         allowInsertColumn: false,
         allowDeleteRow: false,
         allowDeleteColumn: false,
         onchange: calcTotal, 
-        onbeforechange: autoIncrementDrag // 綁定攔截器
+        onbeforechange: autoIncrementDrag, // 綁定攔截器
+        // 新增 onedit 事件，攔截打字瞬間
+        onedit: function(instance, cell, x, y, value) {
+            // 判斷是否為第 3 欄 (片段長度，欄位索引為 2)
+            if (x == 2) {
+                let input = cell.querySelector('input');
+                if (input) {
+                    // 【修正】加上 HTML 原生的 maxlength 限制，防止手打超字數
+                    input.setAttribute('maxlength', '5');
+                    
+                    // 監聽輸入框，使用正則表達式將所有「非數字」字元即時替換為空字串
+                    // 替換為這行，直接覆寫事件，避免潛在的監聽器重複綁定堆疊
+                    input.oninput = function() {
+                        this.value = this.value.replace(/[^\d]/g, '');
+                    };
+                }
+            }
+        }
     });
 });
 
@@ -226,10 +243,37 @@ document.addEventListener('mouseup', function() {
 // 2. 終極版自動遞增與循環貼上邏輯 (支援上下雙向)
 // ==========================================
 function autoIncrementDrag(instance, cell, x, y, value) {
-    // 防線：非拖曳狀態一律放行 (保護手動輸入與複製貼上)
+    let colIndex = parseInt(x, 10);
+
+    // 增加終極防護：確保 value 絕對不會是 null 或 undefined 導致後續報錯
+    if (value === null || value === undefined) {
+        value = '';
+    }
+
+    // 1. 新增防護：先處理正則過濾，再處理長度截斷 (解除 if-else 互斥 Bug)
+    if (value !== '') { // 改判斷是否為空字串
+        let strValue = value.toString();
+        
+        // 如果是片段長度，先無條件濾除所有非數字
+        if (colIndex === 2) {
+            strValue = strValue.replace(/[^\d]/g, '');
+        }
+
+        // 接著再針對各欄位進行長度截斷
+        if (colIndex === 0 && strValue.length > 6) { 
+            value = strValue.substring(0, 6);
+        } else if (colIndex === 1 && strValue.length > 6) { 
+            value = strValue.substring(0, 6);
+        } else if (colIndex === 2 && strValue.length > 5) { 
+            value = strValue.substring(0, 5);
+        } else {
+            value = strValue;
+        }
+    }
+
+    // 2. 防線：非拖曳狀態一律放行 (保護手動輸入與複製貼上)
     if (!isFillDragging || !dragOrigin) return value;
 
-    x = parseInt(x, 10);
     y = parseInt(y, 10);
 
     // 落在原始框選範圍內，直接放行
@@ -239,11 +283,11 @@ function autoIncrementDrag(instance, cell, x, y, value) {
 
     // 檢查「當前欄」的框選範圍是否內容完全相同
     let isColIdentical = true;
-    let firstVal = mySpreadsheet.getValueFromCoords(x, dragOrigin.r1);
+    let firstVal = mySpreadsheet.getValueFromCoords(colIndex, dragOrigin.r1);
     
     if (dragHeight > 1) {
         for (let r = dragOrigin.r1 + 1; r <= dragOrigin.r2; r++) {
-            if (mySpreadsheet.getValueFromCoords(x, r) !== firstVal) {
+            if (mySpreadsheet.getValueFromCoords(colIndex, r) !== firstVal) {
                 isColIdentical = false;
                 break;
             }
@@ -259,10 +303,9 @@ function autoIncrementDrag(instance, cell, x, y, value) {
     } 
     else {
         // 情境 B：多格且內容不同 => 啟動數學遞增 或 陣列循環
-        // 算出現在這格距離框選邊界差了「幾步 (diff)」
         let diff = isDraggingDown ? (y - dragOrigin.r2) : (dragOrigin.r1 - y);
         let baseR = isDraggingDown ? dragOrigin.r2 : dragOrigin.r1;
-        let baseValue = mySpreadsheet.getValueFromCoords(x, baseR);
+        let baseValue = mySpreadsheet.getValueFromCoords(colIndex, baseR);
 
         if (baseValue != null && baseValue !== "") {
             let baseStr = baseValue.toString();
@@ -281,9 +324,8 @@ function autoIncrementDrag(instance, cell, x, y, value) {
                 paddingLength = match[2].length;
 
                 if (dragHeight > 1) {
-                    // 嚴謹檢查：確保框選範圍內的所有儲存格都具備相同的 prefix，才視為等差數列
                     for (let r = dragOrigin.r1; r <= dragOrigin.r2; r++) {
-                        let val = mySpreadsheet.getValueFromCoords(x, r);
+                        let val = mySpreadsheet.getValueFromCoords(colIndex, r);
                         if (val == null) { isNumericSeries = false; break; }
                         let m = val.toString().match(/^(.*?)(\d+)$/);
                         if (!m || m[1] !== prefix) {
@@ -292,10 +334,9 @@ function autoIncrementDrag(instance, cell, x, y, value) {
                         }
                     }
                     
-                    // 若確認為同系列數列，才計算等差 step
                     if (isNumericSeries) {
-                        let topVal = mySpreadsheet.getValueFromCoords(x, dragOrigin.r1);
-                        let secVal = mySpreadsheet.getValueFromCoords(x, dragOrigin.r1 + 1);
+                        let topVal = mySpreadsheet.getValueFromCoords(colIndex, dragOrigin.r1);
+                        let secVal = mySpreadsheet.getValueFromCoords(colIndex, dragOrigin.r1 + 1);
                         let m1 = topVal.toString().match(/^(.*?)(\d+)$/);
                         let m2 = secVal.toString().match(/^(.*?)(\d+)$/);
                         step = parseInt(m2[2], 10) - parseInt(m1[2], 10);
@@ -308,16 +349,25 @@ function autoIncrementDrag(instance, cell, x, y, value) {
             if (isNumericSeries) {
                 let nextNum = baseNum + (diff * step);
                 if (nextNum < 0) nextNum = 0; 
-                return prefix + nextNum.toString().padStart(paddingLength, '0');
+                
+                let generatedValue = prefix + nextNum.toString().padStart(paddingLength, '0');
+                
+                // 【修正】對數學計算生成的新字串，在 Return 前再次嚴格把關長度
+                if (colIndex === 0 || colIndex === 1) {
+                    return generatedValue.substring(0, 6);
+                } else if (colIndex === 2) {
+                    return generatedValue.substring(0, 5);
+                }
+                return generatedValue;
             } 
-            // 處理邏輯 2：非等差數列 (包含不同 Primer 混搭) => 循環貼上
+            // 處理邏輯 2：非等差數列 => 循環貼上
             else {
                 let offset = diff - 1;
                 let sourceRow = isDraggingDown
                     ? dragOrigin.r1 + (offset % dragHeight)
                     : dragOrigin.r2 - (offset % dragHeight);
                 
-                let loopValue = mySpreadsheet.getValueFromCoords(x, sourceRow);
+                let loopValue = mySpreadsheet.getValueFromCoords(colIndex, sourceRow);
                 return loopValue !== null ? loopValue : value;
             }
         }
