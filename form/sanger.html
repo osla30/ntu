@@ -32,15 +32,49 @@
         .radio-group label { display: flex; align-items: center; font-weight: normal; cursor: pointer; padding: 8px; border: 1px solid #eee; border-radius: 4px; }
         .radio-group label:hover { background: #f9f9f9; }
         .radio-group input { margin-right: 10px; }
-        .btn-group { display: flex; gap: 15px; margin-top: 30px; }
-        button { flex: 1; padding: 14px; font-size: 16px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        /* 懸浮按鈕群組容器設定 */
+        .btn-group { 
+            position: fixed;       /* 固定定位，使其懸浮於視窗上 */
+            top: 25%;              /* 垂直居中基準 */
+            right: 20px;           /* 距離螢幕右側 20px */
+            transform: translateY(-50%); /* 精準垂直置中 */
+            display: flex; 
+            flex-direction: column; /* 改為由上到下垂直排列 */
+            gap: 15px;             /* 按鈕之間保持 15px 的間隔，不會黏在一起 */
+            z-index: 1000;         /* 確保層級最高，不會被其他元件或表格擋住 */
+        }
+        
+        /* 按鈕本體設計：縮小尺寸、長方形圓角 */
+        button { 
+            width: 150px;          /* 固定寬度，確保三個按鈕一樣寬 */
+            padding: 12px 15px;    /* 稍微縮小上下內距，讓按鈕變小 */
+            font-size: 14px;       /* 縮小字體尺寸 */
+            font-weight: bold; 
+            border: none; 
+            border-radius: 8px;    /* 圓角設計 */
+            cursor: pointer; 
+            transition: all 0.2s; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15); /* 新增陰影，提升懸浮立體感 */
+        }
         .btn-primary { background: var(--primary); color: white; }
         .btn-primary:hover { background: #103F91; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         .btn-secondary { background: #6c757d; color: white; }
         .btn-secondary:hover { background: #5c636a; }
         .btn-danger { background: #e74c3c; color: white; }
         .btn-danger:hover { background: #c0392b; }
-        .total-indicator { text-align: right; margin-top: 15px; font-weight: bold; font-size: 1.1em; color: #d9534f; }
+        .total-indicator { 
+            text-align: center;      /* 置中對齊，與上方按鈕視覺一致 */
+            margin-top: 10px;        /* 距離上方的 Word 按鍵一小段距離 */
+            font-weight: bold; 
+            font-size: 1.1em; 
+            color: #e74c3c;          /* 維持原本的紅色 */
+            background-color: transparent; /* 確保背景為透明 */
+            padding: 5px;            /* 稍微增加內距讓文字不要太貼邊 */
+        }
     </style>
 </head>
 <body>
@@ -101,18 +135,18 @@
 
     <div class="section">
         <div class="section-title">
-          檢體清單 (1~30)<span style="color: #d9534f; font-weight: normal; font-size: 0.9em; margin-left: 12px;">(若檢體超過30支，請另填一張定序檢體單)</span>
+          檢體清單 (1~30)<span style="color: #e74c3c; font-weight: normal; font-size: 0.9em; margin-left: 12px;">(若檢體超過30支，請另填一張定序檢體單)</span>
         </div>
         <div style="display: flex; justify-content: center; width: 100%;">
             <div id="spreadsheet-container" style="overflow-x: auto; max-width: 100%;"></div>
         </div>
-        <div class="total-indicator">當前總樣本數：<span id="ui-total-count">0</span></div>
     </div>
 
     <div class="btn-group">
         <button class="btn-secondary" onclick="loadExample()">載入範例資料</button>
         <button class="btn-danger" onclick="clearAll()">全部清除</button>
-        <button class="btn-primary" onclick="generateWord()">匯出 Word 表單 (.docx)</button>
+        <button class="btn-primary" onclick="generateWord()">匯出 Word (.docx)</button>
+        <div class="total-indicator">當前樣本數：<span id="ui-total-count">0</span></div>
     </div>
 </div>
 
